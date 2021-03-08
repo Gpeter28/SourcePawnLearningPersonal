@@ -1,6 +1,7 @@
 #include <sourcemod>
 #include <sdktools>
 #include <cstrike>
+#include <sdkhooks>
 
 #pragma semicolon 1
 #pragma newdecls required
@@ -11,8 +12,38 @@ public void OnPluginStart()
 {
     RegConsoleCmd("sm_health", GetHealth, "Get Client Hp");
     HookEvent("hegrenade_detonate", Event_HegrenadeBounce, EventHookMode_Pre);
-    HookEvent("player_hurt", Event_BlockgrenadeDamage, EventHookMode_Pre);
+    // HookEvent("player_hurt", Event_BlockgrenadeDamage, EventHookMode_Pre);
+    
 }
+
+public void OnClientPutInServer(int client)
+{
+    SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage);
+}
+
+public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3])
+{
+    int attackerUserId = attacker;
+	int victimUserId = victim;
+
+    char WeaponCallBack[32];
+	GetEdictClassname(inflictor, WeaponCallBack, sizeof(WeaponCallBack));
+
+    if( (attackerUserId == victimUserId) || (GetClientTeam(victimUserId) == GetClientTeam(attackerUserId)) )
+    {
+        return Plugin_Continue;
+    }
+
+    if(strcmp(WeaponCallBack, "hegrenade_projectile", false))
+    {
+        return Plugin_Continue;
+    }else{
+        // in This Section . We cancel the damage of Grenade
+        return Plugin_Handled;
+    }
+}
+
+
 
 public Action GetHealth(int clients, int args)
 {
@@ -32,34 +63,6 @@ public Action GetHealth(int clients, int args)
     }
     return Plugin_Handled;
 }
-
-public Action Event_BlockgrenadeDamage(Event event , char[] name, bool dontBroadcast)
-{
-    // int HurtClient = GetClientOfUserId(GetEventInt(event, "userid"));
-
-    char weapon_name[32];
-    GetEventString(event, "weapon", weapon_name, sizeof(weapon_name));
-
-    // hegrenade
-    // PrintToChatAll("%s", weapon_name);
-    if(strcmp("hegrenade", weapon_name, false) == 0)
-    {
-
-        // int dmg = GetEventInt(event, "dmg_health");
-        // int health = GetEventInt(event, "health");
-
-        // PrintToChatAll("%d --- Remain: %d", dmg, health);
-        // SetEventInt(event, "health", dmg+health);
-        // int h2 = GetEventInt(event, "health");
-        // PrintToChatAll("ActualRemain: %d  ------- ShouldBe: %d", health, h2);
-        // SetEventInt(event, "dmg_health", 0);
-        // SetEventInt(event, "dmg_armor", 0);
-        // PrintToChatAll("DmgOfHealth: %d", GetEventInt(event, "dmg_health"));
-        return Plugin_Handled;
-    }
-    return Plugin_Handled;
-}
-
 
 public Action Event_HegrenadeBounce(Event event, char[] name, bool dontBroadcast)
 {
@@ -115,7 +118,7 @@ public Action Event_HegrenadeBounce(Event event, char[] name, bool dontBroadcast
 
         if(GetDisctance(origin, AClient_Position) <= FreezeLength) {
             float s = GetDisctance(origin, AClient_Position);
-            PrintToChatAll("client is closer than 250 And is %f", s);
+            PrintToChatAll("client is closer than %f And is %f", FreezeLength, s);
 
             char ClientName[32];
             GetClientName(i, ClientName, sizeof(ClientName));
@@ -150,3 +153,29 @@ public float GetDisctance(float[3] nade, float[3] clientEye)
 }
 
 
+// public Action Event_BlockgrenadeDamage(Event event , char[] name, bool dontBroadcast)
+// {
+//     // int HurtClient = GetClientOfUserId(GetEventInt(event, "userid"));
+
+//     char weapon_name[32];
+//     GetEventString(event, "weapon", weapon_name, sizeof(weapon_name));
+
+//     // hegrenade
+//     // PrintToChatAll("%s", weapon_name);
+//     if(strcmp("hegrenade", weapon_name, false) == 0)
+//     {
+
+//         // int dmg = GetEventInt(event, "dmg_health");
+//         // int health = GetEventInt(event, "health");
+
+//         // PrintToChatAll("%d --- Remain: %d", dmg, health);
+//         // SetEventInt(event, "health", dmg+health);
+//         // int h2 = GetEventInt(event, "health");
+//         // PrintToChatAll("ActualRemain: %d  ------- ShouldBe: %d", health, h2);
+//         // SetEventInt(event, "dmg_health", 0);
+//         // SetEventInt(event, "dmg_armor", 0);
+//         // PrintToChatAll("DmgOfHealth: %d", GetEventInt(event, "dmg_health"));
+//         return Plugin_Handled;
+//     }
+//     return Plugin_Handled;
+// }
