@@ -7,7 +7,7 @@
 #pragma newdecls required
 
 
-// CSWeapon_HEGRENADE
+// This Plugins is use to Block Grenades damage from enemy
 
 public void OnClientPutInServer(int client)
 {
