@@ -8,7 +8,9 @@
 
 
 Handle h_freeze_timer[MAXPLAYERS + 1];
-
+float FreezeLength = 250.0;
+float CutLength = 44.0;
+float freezetime = 1.5;
 
 // CSWeapon_HEGRENADE
 // public void OnPluginStart()
@@ -70,8 +72,8 @@ public Action CreateEvent_SmokeDetonate(Handle timer, int entity)
 
     if(!strcmp(g_szClassName, "smokegrenade_projectile", false))
     {
-        float FreezeLength = 250.0;
-        float CutLength = 32.0 + 12.0;
+        // float FreezeLength = 250.0;
+        // float CutLength = 32.0 + 12.0;
 
         float origin[3];
         GetEntPropVector(entity, Prop_Send, "m_vecOrigin", origin);
@@ -116,7 +118,7 @@ public Action CreateEvent_SmokeDetonate(Handle timer, int entity)
                 PrintToChatAll("FreezeClient %s", ClientName);
                 // int client = GetEntPropEnt(entity, Prop_Send, "m_hThrower");
                 AcceptEntityInput(entity, "kill");
-                Freeze(i, ThrowNClient, 1.5);
+                Freeze(i, ThrowNClient, freezetime);
             }else{
                 float s = GetDisctance(origin, AClient_Position);
                 PrintToChatAll("Not Close %f", s);
