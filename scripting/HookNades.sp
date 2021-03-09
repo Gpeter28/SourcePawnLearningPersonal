@@ -19,6 +19,14 @@ Handle h_smoke_freeze_distance;
 Handle h_smoke_freeze_duration;
 Handle h_smoke_flying_time;
 
+Handle h_fwdOnClientFreeze;
+Handle h_fwdOnClientFreezed;
+
+public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
+{
+    h_fwdOnClientFreeze  = CreateGlobalForward("peter_OnClientFreeze",    ET_Hook, Param_Cell, Param_Cell, Param_FloatByRef);
+	h_fwdOnClientFreezed = CreateGlobalForward("peter_OnClientFreezed", ET_Ignore, Param_Cell, Param_Cell, Param_Float);
+}
 
 public void OnPluginStart()
 {
@@ -38,6 +46,7 @@ public void OnPluginStart()
     // HookEvent("smokegrenade_detonate", Event_SmokeDetonate, EventHookMode_Pre);
     // RegConsoleCmd("sm_health", GetHealth, "Get Client Hp");   
 }
+
 
 public Action Event_GetSmokePluginsHelp(int clients, int args)
 {
@@ -113,6 +122,59 @@ public Action Grenade_SpawnPost(int entity)
     CreateTimer(f_smoke_flying_time, CreateEvent_SmokeDetonate, entity, TIMER_FLAG_NO_MAPCHANGE);
 }
 
+public void SearchFreezeClient(int client, float origin[3])
+{
+    int ThrowNClient = client;
+    int times = 0;
+
+    for(int i = 1; i <= GetClientCount(true); ++i)
+    {
+        
+            // Dead
+            if (GetClientHealth(i) == 0)
+            {
+                continue;
+            }
+           // Grenade himself
+        //     if (i == ThrowNClient)
+        //     {
+        //         continue;
+        //     }
+
+        //     int iteam = GetClientTeam(ThrowNClient);
+        //     int iLoopteam = GetClientTeam(i);
+
+        //   // Same Team
+        //     if(iteam == iLoopteam)
+        //     {
+        //         continue;
+        //     }
+
+            float AClient_Position[3];
+            GetClientEyePosition(i, AClient_Position);
+            AClient_Position[2] -= CutLength;
+
+            if(GetDisctance(origin, AClient_Position) <= f_freeze_distance)
+            {
+                ++times;
+                float s = GetDisctance(origin, AClient_Position);
+                // PrintToChatAll("client is closer than %f And is %f", f_freeze_distance, s);
+
+                char ClientName[32];
+                GetClientName(i, ClientName, sizeof(ClientName));
+                PrintToChatAll("这个shabee  <%s>  被逮住了 。距离雷落点距离%f", ClientName, s);
+                // int client = GetEntPropEnt(entity, Prop_Send, "m_hThrower");
+                Freeze(i, ThrowNClient, f_freeze_duration);
+            }
+    }
+    if(times == 0)
+    {
+        char Tname[32];
+        GetClientName(ThrowNClient, Tname, sizeof(Tname));     
+        PrintToChatAll("会不会丢雷啊? %s在用手柄玩游戏吗? ", Tname);
+    }
+}
+
 public Action CreateEvent_SmokeDetonate(Handle timer, int entity)
 {
     if (!IsValidEdict(entity))
@@ -130,73 +192,9 @@ public Action CreateEvent_SmokeDetonate(Handle timer, int entity)
 
         float origin[3];
         GetEntPropVector(entity, Prop_Send, "m_vecOrigin", origin);
+        int client = GetEntPropEnt(entity, Prop_Send, "m_hThrower");
 
-        int ThrowNClient = GetEntPropEnt(entity, Prop_Send, "m_hThrower");
-        int[] aClients = new int[MaxClients];
-        int CountFreezeClient = 0;
-        // origin[0] = GetEventFloat(event, "x");
-        // origin[1] = GetEventFloat(event, "y");
-        // origin[2] = GetEventFloat(event, "z");
-        int CNum = 0;
-        // int ClientArray[MaxClients];
-
-        for(int i = 1; i <= GetClientCount(true); ++i)
-        {
-            // Dead
-            if (GetClientHealth(i) == 0)
-            {
-                continue;
-            }
-           // Grenade himself
-            if (i == ThrowNClient)
-            {
-                continue;
-            }
-
-            int iteam = GetClientTeam(ThrowNClient);
-            int iLoopteam = GetClientTeam(i);
-
-          // Same Team
-            if(iteam == iLoopteam)
-            {
-                continue;
-            }
-
-            float AClient_Position[3];
-            GetClientEyePosition(i, AClient_Position);
-            AClient_Position[2] -= CutLength;
-
-            if(GetDisctance(origin, AClient_Position) <= f_freeze_distance) {
-                float s = GetDisctance(origin, AClient_Position);
-                // PrintToChatAll("client is closer than %f And is %f", f_freeze_distance, s);
-
-                char ClientName[32];
-                GetClientName(i, ClientName, sizeof(ClientName));
-                PrintToChatAll("这个shabee  <%s>  被逮住了 。距离雷落点距离%f", ClientName, s);
-                // int client = GetEntPropEnt(entity, Prop_Send, "m_hThrower");
-                AcceptEntityInput(entity, "kill");
-                // Freeze(i, ThrowNClient, f_freeze_duration);
-                aClients[CountFreezeClient++] = i;
-                ++CNum;
-            }else{
-                // float s = GetDisctance(origin, AClient_Position);
-                // char Tname[32];
-                // GetClientName(ThrowNClient, Tname, sizeof(Tname));           
-                // PrintToChatAll("Not Close %f", s);
-            }
-        }
-        for(int j = 0; j < CountFreezeClient; ++j)
-        {
-            Freeze(j, ThrowNClient, f_freeze_duration);
-        }
-
-        if(CNum == 0)
-        {
-            char Tname[32];
-            GetClientName(ThrowNClient, Tname, sizeof(Tname));     
-            PrintToChatAll("会不会丢雷啊? %s在用手柄玩游戏吗? ", Tname);
-        }    
-
+        SearchFreezeClient(client, origin);
         AcceptEntityInput(entity, "kill");
     }
     return Plugin_Stop;
@@ -207,7 +205,7 @@ public bool Freeze(int client, int attacker, float time)
 {
     Action result;
     float freeze_duration = time;
-
+    result = Forward_OnClientFreeze(client, attacker, freeze_duration);
 
     switch(result)
     {
@@ -227,7 +225,6 @@ public bool Freeze(int client, int attacker, float time)
     // PrintToChatAll("StartFreeze");
     SetEntityMoveType(client, MOVETYPE_NONE);
 
-
     h_freeze_timer[client] = CreateTimer(freeze_duration, Unfreeze, client, TIMER_FLAG_NO_MAPCHANGE);
     Forward_OnClientFreezed(client, attacker, freeze_duration);
     return true;
@@ -237,12 +234,13 @@ public Action Unfreeze(Handle timer, int client)
 {
     char name[32];
     GetClientName(client, name, sizeof(name));
-    PrintToChatAll("这几个猴被冻了 %f 秒", f_freeze_duration);
+    PrintToChatAll("这个猴 <%s> 被冻了 %f 秒", name, f_freeze_duration);
     if (h_freeze_timer[client] != INVALID_HANDLE)
 	{
 		SetEntityMoveType(client, MOVETYPE_WALK);
 		h_freeze_timer[client] = INVALID_HANDLE;
 	}
+    return Plugin_Handled;
 }
 
 public Action Forward_OnClientFreeze(int client, int attacker, float time)
@@ -250,6 +248,7 @@ public Action Forward_OnClientFreeze(int client, int attacker, float time)
 	Action result;
 	result = Plugin_Continue;
 	
+    Call_StartForward(h_fwdOnClientFreeze);
 	Call_PushCell(client);
 	Call_PushCell(attacker);
 	Call_PushFloatRef(time);
@@ -260,6 +259,7 @@ public Action Forward_OnClientFreeze(int client, int attacker, float time)
 
 public void Forward_OnClientFreezed(int client, int attacker, float time)
 {
+    Call_StartForward(h_fwdOnClientFreezed);
 	Call_PushCell(client);
 	Call_PushCell(attacker);
 	Call_PushFloat(time);
