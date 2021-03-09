@@ -6,18 +6,71 @@
 #pragma semicolon 1
 #pragma newdecls required
 
+float CutLength = 44.0;
+
 
 Handle h_freeze_timer[MAXPLAYERS + 1];
-float FreezeLength = 250.0;
-float CutLength = 44.0;
-float freezetime = 1.5;
 
-// CSWeapon_HEGRENADE
-// public void OnPluginStart()
-// {
-//     // HookEvent("smokegrenade_detonate", Event_SmokeDetonate, EventHookMode_Pre);
-//     // RegConsoleCmd("sm_health", GetHealth, "Get Client Hp");   
-// }
+float f_freeze_distance         = 250.0;
+float f_freeze_duration         =   1.5;
+float f_smoke_flying_time        = 1.3;
+
+Handle h_smoke_freeze_distance;
+Handle h_smoke_freeze_duration;
+Handle h_smoke_flying_time;
+
+
+public void OnPluginStart()
+{
+    RegConsoleCmd("sm_smoke", Event_GetSmokePluginsHelp, "GetSmokePluginHelp");
+
+    h_smoke_freeze_distance = CreateConVar("peter_smoke_freeze_disctance"  ,  "250",            "This decide the distance of smoke freeze", 0, true, 50.0, true, 500.0);
+    h_smoke_freeze_duration = CreateConVar("peter_smoke_freeze_duration"   ,    "1",                "This decide the freeze time of smoke", 0, true,  0.5, true,   5.0);
+    h_smoke_flying_time =     CreateConVar("peter_smoke_freeze_flying_time",  "1.3", "This Controls the flying time of smokegrendae timer", 0, true,  1.0, true,   2.0);
+
+    f_freeze_distance = GetConVarFloat(h_smoke_freeze_distance);
+    f_freeze_duration = GetConVarFloat(h_smoke_freeze_duration);
+    f_smoke_flying_time = GetConVarFloat(h_smoke_flying_time);
+
+    HookConVarChange(h_smoke_freeze_distance, OnConVarChanged);
+    HookConVarChange(h_smoke_freeze_duration, OnConVarChanged);
+    HookConVarChange(h_smoke_flying_time, OnConVarChanged);
+    // HookEvent("smokegrenade_detonate", Event_SmokeDetonate, EventHookMode_Pre);
+    // RegConsoleCmd("sm_health", GetHealth, "Get Client Hp");   
+}
+
+public Action Event_GetSmokePluginsHelp(int clients, int args)
+{
+    if(args > 0)
+    {
+        ReplyToCommand(clients, "[SM] Usage: sm_smoke");
+        return Plugin_Handled;
+    }
+
+    ReplyToCommand(clients, "peter_smoke_freeze_disctance   This decide the distance of smoke freeze(50~500)");
+    ReplyToCommand(clients, "peter_smoke_freeze_duration    This decide the freeze time of smoke(0.5~50)");
+    ReplyToCommand(clients, "peter_smoke_freeze_flying_time This Controls the flying time of smokegrendae timer(1.0~2.0)");
+    return Plugin_Handled;
+}
+
+public void OnConVarChanged(Handle convar, const char[] oldValue, char[] newValue)
+{
+    if(convar == h_smoke_freeze_distance)
+    {
+        f_freeze_distance = StringToFloat(newValue);
+        PrintToChatAll("[SM] FreezeDistanceHasChange: %f", f_freeze_distance);
+    }else if(convar == h_smoke_freeze_duration)
+    {
+        f_freeze_duration = StringToFloat(newValue);
+        PrintToChatAll("[SM] FreezeDurationHasChange: %f", f_freeze_duration);
+    }else if(convar == h_smoke_flying_time)
+    {
+        f_smoke_flying_time = StringToFloat(newValue);
+        PrintToChatAll("[SM] SmokeFlyingTimeHasChange: %f", f_smoke_flying_time);
+    }  
+}
+
+
 
 public void OnEntityCreated(int entity, const char[] classname)
 {
@@ -57,7 +110,7 @@ public Action Grenade_SpawnPost(int entity)
     if(client == -1)
         return;
     
-    CreateTimer(1.3, CreateEvent_SmokeDetonate, entity, TIMER_FLAG_NO_MAPCHANGE);
+    CreateTimer(f_smoke_flying_time, CreateEvent_SmokeDetonate, entity, TIMER_FLAG_NO_MAPCHANGE);
 }
 
 public Action CreateEvent_SmokeDetonate(Handle timer, int entity)
@@ -72,17 +125,21 @@ public Action CreateEvent_SmokeDetonate(Handle timer, int entity)
 
     if(!strcmp(g_szClassName, "smokegrenade_projectile", false))
     {
-        // float FreezeLength = 250.0;
+        // float f_freeze_distance = 250.0;
         // float CutLength = 32.0 + 12.0;
 
         float origin[3];
         GetEntPropVector(entity, Prop_Send, "m_vecOrigin", origin);
 
         int ThrowNClient = GetEntPropEnt(entity, Prop_Send, "m_hThrower");
+        int[] aClients = new int[MaxClients];
+        int CountFreezeClient = 0;
         // origin[0] = GetEventFloat(event, "x");
         // origin[1] = GetEventFloat(event, "y");
         // origin[2] = GetEventFloat(event, "z");
- 
+        int CNum = 0;
+        // int ClientArray[MaxClients];
+
         for(int i = 1; i <= GetClientCount(true); ++i)
         {
             // Dead
@@ -109,21 +166,37 @@ public Action CreateEvent_SmokeDetonate(Handle timer, int entity)
             GetClientEyePosition(i, AClient_Position);
             AClient_Position[2] -= CutLength;
 
-            if(GetDisctance(origin, AClient_Position) <= FreezeLength) {
+            if(GetDisctance(origin, AClient_Position) <= f_freeze_distance) {
                 float s = GetDisctance(origin, AClient_Position);
-                PrintToChatAll("client is closer than %f And is %f", FreezeLength, s);
+                // PrintToChatAll("client is closer than %f And is %f", f_freeze_distance, s);
 
                 char ClientName[32];
                 GetClientName(i, ClientName, sizeof(ClientName));
-                PrintToChatAll("FreezeClient %s", ClientName);
+                PrintToChatAll("这个shabee  <%s>  被逮住了 。距离雷落点距离%f", ClientName, s);
                 // int client = GetEntPropEnt(entity, Prop_Send, "m_hThrower");
                 AcceptEntityInput(entity, "kill");
-                Freeze(i, ThrowNClient, freezetime);
+                // Freeze(i, ThrowNClient, f_freeze_duration);
+                aClients[CountFreezeClient++] = i;
+                ++CNum;
             }else{
-                float s = GetDisctance(origin, AClient_Position);
-                PrintToChatAll("Not Close %f", s);
+                // float s = GetDisctance(origin, AClient_Position);
+                // char Tname[32];
+                // GetClientName(ThrowNClient, Tname, sizeof(Tname));           
+                // PrintToChatAll("Not Close %f", s);
             }
         }
+        for(int j = 0; j < CountFreezeClient; ++j)
+        {
+            Freeze(j, ThrowNClient, f_freeze_duration);
+        }
+
+        if(CNum == 0)
+        {
+            char Tname[32];
+            GetClientName(ThrowNClient, Tname, sizeof(Tname));     
+            PrintToChatAll("会不会丢雷啊? %s在用手柄玩游戏吗? ", Tname);
+        }    
+
         AcceptEntityInput(entity, "kill");
     }
     return Plugin_Stop;
@@ -151,7 +224,7 @@ public bool Freeze(int client, int attacker, float time)
         KillTimer(h_freeze_timer[client]);
         h_freeze_timer[client] = INVALID_HANDLE;
     }
-    PrintToChatAll("StartFreeze");
+    // PrintToChatAll("StartFreeze");
     SetEntityMoveType(client, MOVETYPE_NONE);
 
 
@@ -162,7 +235,9 @@ public bool Freeze(int client, int attacker, float time)
 
 public Action Unfreeze(Handle timer, int client)
 {
-    PrintToChatAll("StartUnfreeze");
+    char name[32];
+    GetClientName(client, name, sizeof(name));
+    PrintToChatAll("这几个猴被冻了 %f 秒", f_freeze_duration);
     if (h_freeze_timer[client] != INVALID_HANDLE)
 	{
 		SetEntityMoveType(client, MOVETYPE_WALK);
@@ -196,7 +271,7 @@ public void Forward_OnClientFreezed(int client, int attacker, float time)
 //     PrintToChatAll("EventSmokeDetonate");
 //     int ThrowNClient = GetClientOfUserId(GetEventInt(event, "userid"));
 
-//     float FreezeLength = 250.0;
+//     float f_freeze_distance = 250.0;
 //     float origin[3];
 //     float CutLength = 32.0 + 12.0;
 //     origin[0] = GetEventFloat(event, "x");
@@ -240,9 +315,9 @@ public void Forward_OnClientFreezed(int client, int attacker, float time)
 //         GetClientEyePosition(i, AClient_Position);
 //         AClient_Position[2] -= CutLength;
 
-//         if(GetDisctance(origin, AClient_Position) <= FreezeLength) {
+//         if(GetDisctance(origin, AClient_Position) <= f_freeze_distance) {
 //             float s = GetDisctance(origin, AClient_Position);
-//             PrintToChatAll("client is closer than %f And is %f", FreezeLength, s);
+//             PrintToChatAll("client is closer than %f And is %f", f_freeze_distance, s);
 
 //             char ClientName[32];
 //             GetClientName(i, ClientName, sizeof(ClientName));
