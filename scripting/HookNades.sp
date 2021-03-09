@@ -7,14 +7,15 @@
 #pragma newdecls required
 
 
-Handle h_freezetimer[MAXPLAYERS + 1];
+Handle h_freeze_timer[MAXPLAYERS + 1];
+
 
 // CSWeapon_HEGRENADE
-public void OnPluginStart()
-{
-    // HookEvent("smokegrenade_detonate", Event_SmokeDetonate, EventHookMode_Pre);
-    // RegConsoleCmd("sm_health", GetHealth, "Get Client Hp");   
-}
+// public void OnPluginStart()
+// {
+//     // HookEvent("smokegrenade_detonate", Event_SmokeDetonate, EventHookMode_Pre);
+//     // RegConsoleCmd("sm_health", GetHealth, "Get Client Hp");   
+// }
 
 public void OnEntityCreated(int entity, const char[] classname)
 {
@@ -29,10 +30,21 @@ public void OnRoundStart(Handle event, const char[] name, bool dontBroadcast)
 	for (int client = 1; client <= MaxClients; client++)
 	{
 		if (h_freeze_timer[client] != INVALID_HANDLE)
-		{
-			KillTimer(h_freeze_timer[client]);
-			h_freeze_timer[client] = INVALID_HANDLE;
-		}
+	    {
+		    KillTimer(h_freeze_timer[client]);
+		    h_freeze_timer[client] = INVALID_HANDLE;
+	    }
+	}
+}
+
+public void OnClientDisconnect(int client)
+{
+	if (IsClientInGame(client))
+		ExtinguishEntity(client);
+	if (h_freeze_timer[client] != INVALID_HANDLE)
+	{
+		KillTimer(h_freeze_timer[client]);
+		h_freeze_timer[client] = INVALID_HANDLE;
 	}
 }
 
@@ -58,13 +70,13 @@ public Action CreateEvent_SmokeDetonate(Handle timer, int entity)
 
     if(!strcmp(g_szClassName, "smokegrenade_projectile", false))
     {
-        float origin[3];
-        GetEntPropVector(entity, Prop_Send, "m_vecOrigin", origin);
-        int ThrowNClient = GetEntPropEnt(entity, Prop_Send, "m_hThrower");
         float FreezeLength = 250.0;
-        // float origin[3];
         float CutLength = 32.0 + 12.0;
 
+        float origin[3];
+        GetEntPropVector(entity, Prop_Send, "m_vecOrigin", origin);
+
+        int ThrowNClient = GetEntPropEnt(entity, Prop_Send, "m_hThrower");
         // origin[0] = GetEventFloat(event, "x");
         // origin[1] = GetEventFloat(event, "y");
         // origin[2] = GetEventFloat(event, "z");
@@ -72,48 +84,45 @@ public Action CreateEvent_SmokeDetonate(Handle timer, int entity)
         for(int i = 1; i <= GetClientCount(true); ++i)
         {
             // Dead
-            if(GetClientHealth(i) == 0)
+            if (GetClientHealth(i) == 0)
             {
                 continue;
             }
            // Grenade himself
-           if(i == ThrowNClient)
-           {
-               continue;
-           }
+            if (i == ThrowNClient)
+            {
+                continue;
+            }
 
-          int iteam = GetClientTeam(ThrowNClient);
-          int iLoopteam = GetClientTeam(i);
+            int iteam = GetClientTeam(ThrowNClient);
+            int iLoopteam = GetClientTeam(i);
 
           // Same Team
-           if(iteam == iLoopteam)
-           {
+            if(iteam == iLoopteam)
+            {
                 continue;
-           }
+            }
 
-           float AClient_Position[3];
-           GetClientEyePosition(i, AClient_Position);
-           AClient_Position[2] -= CutLength;
+            float AClient_Position[3];
+            GetClientEyePosition(i, AClient_Position);
+            AClient_Position[2] -= CutLength;
 
             if(GetDisctance(origin, AClient_Position) <= FreezeLength) {
-               float s = GetDisctance(origin, AClient_Position);
-               PrintToChatAll("client is closer than %f And is %f", FreezeLength, s);
+                float s = GetDisctance(origin, AClient_Position);
+                PrintToChatAll("client is closer than %f And is %f", FreezeLength, s);
 
                 char ClientName[32];
                 GetClientName(i, ClientName, sizeof(ClientName));
                 PrintToChatAll("FreezeClient %s", ClientName);
                 // int client = GetEntPropEnt(entity, Prop_Send, "m_hThrower");
+                AcceptEntityInput(entity, "kill");
                 Freeze(i, ThrowNClient, 1.5);
             }else{
                 float s = GetDisctance(origin, AClient_Position);
                 PrintToChatAll("Not Close %f", s);
             }
-         }
-    
-
+        }
         AcceptEntityInput(entity, "kill");
-
-
     }
     return Plugin_Stop;
 }
@@ -135,11 +144,12 @@ public bool Freeze(int client, int attacker, float time)
         }
     }
 
-    if(h_freezetimer[client] != INVALID_HANDLE)
+    if(h_freeze_timer[client] != INVALID_HANDLE)
     {
-        KillTimer(h_freezetimer[client]);
-        h_freezetimer[client] = INVALID_HANDLE;
+        KillTimer(h_freeze_timer[client]);
+        h_freeze_timer[client] = INVALID_HANDLE;
     }
+    PrintToChatAll("StartFreeze");
     SetEntityMoveType(client, MOVETYPE_NONE);
 
 
@@ -150,6 +160,7 @@ public bool Freeze(int client, int attacker, float time)
 
 public Action Unfreeze(Handle timer, int client)
 {
+    PrintToChatAll("StartUnfreeze");
     if (h_freeze_timer[client] != INVALID_HANDLE)
 	{
 		SetEntityMoveType(client, MOVETYPE_WALK);
@@ -162,7 +173,6 @@ public Action Forward_OnClientFreeze(int client, int attacker, float time)
 	Action result;
 	result = Plugin_Continue;
 	
-	Call_StartForward(h_fwdOnClientFreeze);
 	Call_PushCell(client);
 	Call_PushCell(attacker);
 	Call_PushFloatRef(time);
@@ -173,7 +183,6 @@ public Action Forward_OnClientFreeze(int client, int attacker, float time)
 
 public void Forward_OnClientFreezed(int client, int attacker, float time)
 {
-	Call_StartForward(h_fwdOnClientFreezed);
 	Call_PushCell(client);
 	Call_PushCell(attacker);
 	Call_PushFloat(time);
